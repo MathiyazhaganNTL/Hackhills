@@ -189,7 +189,7 @@ export function App() {
   const selectedPolicy = policies.find((p) => p.id === selectedSession?.isolation_policy_id);
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-200">
       {/* Top Navbar */}
       <Navbar
         currentUser={currentUser}
@@ -211,7 +211,7 @@ export function App() {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-6 bg-[#0b0f19]">
+        <main className="flex-1 overflow-y-auto p-6 bg-background">
           <div className="max-w-7xl mx-auto">
             {selectedSessionId && selectedSession ? (
               <SessionDetailView

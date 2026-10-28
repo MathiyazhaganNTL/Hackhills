@@ -233,6 +233,21 @@ $env:PYTHONPATH="backend"; .\venv\Scripts\pytest backend\tests -v
 - **Python 3.11+** (Python 3.13 validated)
 - **Node.js v20+** & **npm**
 
+### Quickest Start (Single Unified NPM Command)
+Run both the complete frontend and backend concurrently with a single command from the project root:
+
+```bash
+npm run dev
+# or: npm start
+```
+- **Frontend**: `http://localhost:5173`
+- **Backend API**: `http://127.0.0.1:8000`
+- **API Docs**: `http://127.0.0.1:8000/docs`
+
+---
+
+### Manual / Individual Setup
+
 ### Step 1: Clone and Set Up Backend
 ```bash
 # 1. Create Python virtual environment

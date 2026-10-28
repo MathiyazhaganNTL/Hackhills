@@ -1,0 +1,17 @@
+{
+  "name": "bayora-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bayora — Secure AI Red-Teaming & Safety Evaluation Infrastructure",
+  "scripts": {
+    "start": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan.bold,magenta.bold\" \"npm run backend\" \"npm run frontend\"",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan.bold,magenta.bold\" \"npm run backend\" \"npm run frontend\"",
+    "backend": "node ./scripts/start-backend.js",
+    "frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "postinstall": "npm --prefix frontend install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

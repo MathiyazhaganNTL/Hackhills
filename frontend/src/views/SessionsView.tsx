@@ -5,14 +5,19 @@ import {
   Play,
   Square,
   Search,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  Shield,
+  Filter,
   Eye,
-  Filter
+  Shield,
+  Cpu,
+  Network,
+  Check,
+  ChevronRight,
+  HardDrive
 } from 'lucide-react';
 import { Session, ModelItem, IsolationPolicy, ExecutionProfile } from '../types';
+import { SessionStatusBadge } from '../components/common/SessionStatusBadge';
+import { CopyButton } from '../components/common/CopyButton';
+import { ConfirmationDialog } from '../components/common/ConfirmationDialog';
 
 interface SessionsViewProps {
   sessions: Session[];
@@ -40,8 +45,10 @@ export const SessionsView: React.FC<SessionsViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sessionToTerminate, setSessionToTerminate] = useState<string | null>(null);
 
-  // New Session form state
+  // Wizard state: 4 steps
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [targetModelId, setTargetModelId] = useState(models[0]?.id || 'llama-3-70b-instruct');
@@ -49,11 +56,19 @@ export const SessionsView: React.FC<SessionsViewProps> = ({
   const [executionProfileId, setExecutionProfileId] = useState(profiles[0]?.id || 'exec-profile-01');
 
   const filteredSessions = sessions.filter((s) => {
-    const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          s.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch =
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || s.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const handleOpenWizard = () => {
+    setWizardStep(1);
+    setName('');
+    setDescription('');
+    setIsModalOpen(true);
+  };
 
   const handleSubmitCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,147 +78,119 @@ export const SessionsView: React.FC<SessionsViewProps> = ({
       description,
       target_model_id: targetModelId,
       isolation_policy_id: isolationPolicyId,
-      execution_profile_id: executionProfileId
+      execution_profile_id: executionProfileId,
     });
-    setName('');
-    setDescription('');
     setIsModalOpen(false);
   };
 
-  const getStatusBadge = (status: Session['status']) => {
-    switch (status) {
-      case 'RUNNING':
-        return (
-          <span className="px-2.5 py-1 text-xs font-mono font-semibold rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center w-max">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />
-            RUNNING
-          </span>
-        );
-      case 'COMPLETED':
-        return (
-          <span className="px-2.5 py-1 text-xs font-mono font-semibold rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center w-max">
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-            COMPLETED
-          </span>
-        );
-      case 'DRAFT':
-        return (
-          <span className="px-2.5 py-1 text-xs font-mono font-semibold rounded-md bg-slate-800 text-slate-300 border border-slate-700 flex items-center w-max">
-            <Clock className="w-3.5 h-3.5 mr-1" />
-            DRAFT
-          </span>
-        );
-      case 'TERMINATED':
-        return (
-          <span className="px-2.5 py-1 text-xs font-mono font-semibold rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center w-max">
-            <Square className="w-3.5 h-3.5 mr-1" />
-            TERMINATED
-          </span>
-        );
-      case 'FAILED':
-      default:
-        return (
-          <span className="px-2.5 py-1 text-xs font-mono font-semibold rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/30 flex items-center w-max">
-            <AlertCircle className="w-3.5 h-3.5 mr-1" />
-            FAILED
-          </span>
-        );
-    }
+  const handleConfirmTerminate = async () => {
+    if (!sessionToTerminate) return;
+    await onTerminateSession(sessionToTerminate);
+    setSessionToTerminate(null);
   };
+
+  const selectedModel = models.find((m) => m.id === targetModelId);
+  const selectedPolicy = policies.find((p) => p.id === isolationPolicyId);
+  const selectedProfile = profiles.find((p) => p.id === executionProfileId);
 
   return (
     <div className="space-y-6">
-      {/* View Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-slate-100 flex items-center space-x-2">
-            <Layers className="w-5 h-5 text-cyan-400" />
+          <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center space-x-2">
+            <Layers className="w-5 h-5 text-primary" />
             <span>AI Safety Evaluation Sessions</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Governed test sessions with strictly partitioned execution environments, models, and defensive policies.
           </p>
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
-          className="px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs transition shadow-sm flex items-center space-x-1.5"
+          onClick={handleOpenWizard}
+          className="px-3.5 py-2 rounded-lg bg-primary hover:opacity-90 text-primary-foreground font-semibold text-xs transition shadow-xs flex items-center space-x-1.5"
         >
           <Plus className="w-4 h-4" />
-          <span>New Session</span>
+          <span>New Session Wizard</span>
         </button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="p-3.5 rounded-xl bg-card border border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
           <input
             type="text"
             placeholder="Search sessions by name or ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            className="w-full bg-secondary border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
 
         <div className="flex items-center space-x-2 w-full sm:w-auto">
-          <Filter className="w-3.5 h-3.5 text-slate-500" />
-          <span className="text-xs text-slate-400">Status:</span>
+          <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground">Status:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+            className="bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
           >
             <option value="ALL">All Statuses</option>
             <option value="RUNNING">Running</option>
+            <option value="QUEUED">Queued</option>
             <option value="DRAFT">Draft</option>
             <option value="COMPLETED">Completed</option>
             <option value="TERMINATED">Terminated</option>
+            <option value="FAILED">Failed</option>
           </select>
         </div>
       </div>
 
       {/* Sessions Table */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+      <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950/80 text-slate-400 font-mono uppercase text-[11px] border-b border-slate-800">
+            <thead className="bg-secondary/60 text-muted-foreground font-mono uppercase text-[10px] border-b border-border tracking-wider">
               <tr>
-                <th className="py-3 px-4">Session Name & ID</th>
+                <th className="py-3 px-4">Session Name & Identifier</th>
                 <th className="py-3 px-4">Target Model</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Isolation Tier</th>
+                <th className="py-3 px-4">Isolation Profile</th>
                 <th className="py-3 px-4">Created Date</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/80 text-slate-300">
+            <tbody className="divide-y divide-border text-foreground">
               {filteredSessions.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500 font-mono">
+                  <td colSpan={6} className="py-8 text-center text-muted-foreground font-mono">
                     No matching evaluation sessions found.
                   </td>
                 </tr>
               ) : (
                 filteredSessions.map((session) => (
-                  <tr key={session.id} className="hover:bg-slate-800/40 transition">
+                  <tr key={session.id} className="hover:bg-secondary/40 transition">
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-200">{session.name}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">{session.id}</div>
+                      <div className="font-semibold text-foreground">{session.name}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono flex items-center space-x-1 mt-0.5">
+                        <span>{session.id}</span>
+                        <CopyButton text={session.id} />
+                      </div>
                     </td>
-                    <td className="py-3 px-4 font-mono text-cyan-400">
+                    <td className="py-3 px-4 font-mono font-medium text-primary">
                       {session.target_model_id}
                     </td>
                     <td className="py-3 px-4">
-                      {getStatusBadge(session.status)}
+                      <SessionStatusBadge status={session.status} />
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[11px]">
+                      <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground font-mono text-[11px]">
                         Hardened-Sandbox
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
+                    <td className="py-3 px-4 font-mono text-muted-foreground text-[11px]">
                       {new Date(session.created_at).toLocaleDateString()}
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -212,7 +199,7 @@ export const SessionsView: React.FC<SessionsViewProps> = ({
                           <button
                             onClick={() => onStartSession(session.id)}
                             disabled={isActionLoading}
-                            className="px-2.5 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium flex items-center space-x-1"
+                            className="px-2.5 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold flex items-center space-x-1"
                           >
                             <Play className="w-3 h-3" />
                             <span>Start</span>
@@ -221,9 +208,9 @@ export const SessionsView: React.FC<SessionsViewProps> = ({
 
                         {session.status === 'RUNNING' && (
                           <button
-                            onClick={() => onTerminateSession(session.id)}
+                            onClick={() => setSessionToTerminate(session.id)}
                             disabled={isActionLoading}
-                            className="px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium flex items-center space-x-1"
+                            className="px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center space-x-1"
                           >
                             <Square className="w-3 h-3" />
                             <span>Terminate</span>
@@ -232,7 +219,7 @@ export const SessionsView: React.FC<SessionsViewProps> = ({
 
                         <button
                           onClick={() => onSelectSession(session.id)}
-                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center space-x-1 border border-slate-700"
+                          className="px-2.5 py-1 rounded bg-secondary hover:bg-muted text-foreground text-xs font-medium flex items-center space-x-1 border border-border"
                         >
                           <Eye className="w-3 h-3" />
                           <span>Inspect</span>
@@ -247,110 +234,225 @@ export const SessionsView: React.FC<SessionsViewProps> = ({
         </div>
       </div>
 
-      {/* New Session Creation Modal */}
+      {/* 4-Step Create Session Wizard Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-base font-bold text-slate-100 flex items-center space-x-2">
-                <Shield className="w-4 h-4 text-cyan-400" />
-                <span>Create Evaluation Session</span>
-              </h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl max-w-xl w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="space-y-0.5">
+                <h2 className="text-base font-bold text-foreground flex items-center space-x-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <span>New Evaluation Session Wizard</span>
+                </h2>
+                <div className="text-xs text-muted-foreground">
+                  Step {wizardStep} of 4: {
+                    wizardStep === 1 ? 'Session Details' :
+                    wizardStep === 2 ? 'Model Configuration' :
+                    wizardStep === 3 ? 'Isolation & Security Policy' :
+                    'Review & Confirmation'
+                  }
+                </div>
+              </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-500 hover:text-slate-300 text-sm"
+                className="text-muted-foreground hover:text-foreground text-sm p-1"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmitCreate} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Session Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. AdvBench Jailbreak Resilience Evaluation"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Description</label>
-                <textarea
-                  placeholder="Evaluation scope, target parameters, and defensive ruleset."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500 h-20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Target Model Endpoint</label>
-                <select
-                  value={targetModelId}
-                  onChange={(e) => setTargetModelId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500"
+            {/* Wizard Steps Stepper Bar */}
+            <div className="grid grid-cols-4 gap-2 text-xs font-mono">
+              {[
+                { num: 1, label: 'Identity' },
+                { num: 2, label: 'Model' },
+                { num: 3, label: 'Isolation' },
+                { num: 4, label: 'Review' },
+              ].map((step) => (
+                <div
+                  key={step.num}
+                  className={`p-2 rounded border text-center transition ${
+                    wizardStep === step.num
+                      ? 'bg-primary/10 border-primary text-primary font-bold'
+                      : wizardStep > step.num
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold'
+                      : 'bg-secondary border-border text-muted-foreground'
+                  }`}
                 >
-                  {models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.provider})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div className="text-[10px] uppercase">{step.label}</div>
+                  <div className="text-[11px]">{wizardStep > step.num ? '✓ Done' : `Step ${step.num}`}</div>
+                </div>
+              ))}
+            </div>
 
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Isolation Policy</label>
-                <select
-                  value={isolationPolicyId}
-                  onChange={(e) => setIsolationPolicyId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500"
-                >
-                  {policies.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (CPU: {p.cpu_limit_cores}c, Mem: {p.memory_limit_mb}MB, Egress: Whitelist)
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Step 1: Session Details */}
+            {wizardStep === 1 && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Session Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. HarmBench v2 Jailbreak Safety Evaluation"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Execution Profile</label>
-                <select
-                  value={executionProfileId}
-                  onChange={(e) => setExecutionProfileId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-500"
-                >
-                  {profiles.map((pr) => (
-                    <option key={pr.id} value={pr.id}>
-                      {pr.name} ({pr.runner_type})
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Description</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Evaluation scope, target parameters, and defensive ruleset."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-lg p-3 text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                  />
+                </div>
               </div>
+            )}
 
-              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+            {/* Step 2: Model Configuration */}
+            {wizardStep === 2 && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Target Model Endpoint *</label>
+                  <select
+                    value={targetModelId}
+                    onChange={(e) => setTargetModelId(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  >
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.provider}) — Limit: {m.token_rate_limit_rpm} RPM
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedModel && (
+                  <div className="p-3 rounded-lg bg-secondary border border-border space-y-1 font-mono text-[11px]">
+                    <div className="text-primary font-bold">{selectedModel.name}</div>
+                    <div className="text-muted-foreground">{selectedModel.description}</div>
+                    <div className="text-foreground pt-1 flex items-center space-x-3">
+                      <span>Rate Limit: {selectedModel.token_rate_limit_rpm} req/min</span>
+                      <span>•</span>
+                      <span>Context: {selectedModel.context_window} tokens</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Isolation Policy */}
+            {wizardStep === 3 && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Isolation Policy Profile *</label>
+                  <select
+                    value={isolationPolicyId}
+                    onChange={(e) => setIsolationPolicyId(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  >
+                    {policies.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (CPU: {p.cpu_limit_cores}c, Mem: {p.memory_limit_mb}MB)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-foreground font-medium mb-1">Execution Profile Runtime *</label>
+                  <select
+                    value={executionProfileId}
+                    onChange={(e) => setExecutionProfileId(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                  >
+                    {profiles.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        {pr.name} ({pr.runner_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="p-3 rounded-lg bg-secondary border border-border space-y-1 text-[11px] font-mono text-muted-foreground">
+                  <div className="text-foreground font-bold flex items-center space-x-1.5">
+                    <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Hardened Security Enforcements:</span>
+                  </div>
+                  <div>• Default-deny network egress policy</div>
+                  <div>• Ephemeral isolated workspace sandbox</div>
+                  <div>• Stripped credential environment variables</div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Review and Create */}
+            {wizardStep === 4 && (
+              <div className="space-y-3 text-xs font-mono bg-secondary/50 p-4 rounded-lg border border-border">
+                <div className="text-foreground font-bold text-sm">{name || 'Untitled Session'}</div>
+                <div className="text-muted-foreground text-[11px] font-sans">{description || 'No description provided.'}</div>
+                <div className="pt-2 border-t border-border space-y-1 text-[11px]">
+                  <div><span className="text-muted-foreground">TARGET MODEL:</span> <span className="text-primary font-bold">{targetModelId}</span></div>
+                  <div><span className="text-muted-foreground">ISOLATION POLICY:</span> <span className="text-foreground">{selectedPolicy?.name}</span></div>
+                  <div><span className="text-muted-foreground">RUNNER TYPE:</span> <span className="text-foreground">{selectedProfile?.runner_type}</span></div>
+                  <div><span className="text-muted-foreground">INITIAL STATUS:</span> <span className="text-emerald-500 font-bold">DRAFT</span></div>
+                </div>
+              </div>
+            )}
+
+            {/* Wizard Navigation Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => {
+                  if (wizardStep > 1) setWizardStep((prev) => (prev - 1) as any);
+                  else setIsModalOpen(false);
+                }}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+              >
+                {wizardStep === 1 ? 'Cancel' : 'Previous'}
+              </button>
+
+              {wizardStep < 4 ? (
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                  disabled={wizardStep === 1 && !name.trim()}
+                  onClick={() => setWizardStep((prev) => (prev + 1) as any)}
+                  className="px-4 py-2 rounded-lg bg-primary hover:opacity-90 text-primary-foreground font-semibold text-xs flex items-center space-x-1 disabled:opacity-50"
                 >
-                  Cancel
+                  <span>Next Step</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
+              ) : (
                 <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold"
+                  type="button"
+                  onClick={handleSubmitCreate}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center space-x-1"
                 >
-                  Create Session
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Create Session</span>
                 </button>
-              </div>
-            </form>
+              )}
+            </div>
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog for Session Termination */}
+      <ConfirmationDialog
+        isOpen={Boolean(sessionToTerminate)}
+        title="Confirm Session Termination"
+        message="Terminating this session will immediately halt running evaluation workloads, release sandbox resources, and seal the audit log. This action is terminal."
+        confirmLabel="Terminate Workload"
+        isDestructive={true}
+        onConfirm={handleConfirmTerminate}
+        onCancel={() => setSessionToTerminate(null)}
+      />
     </div>
   );
 };

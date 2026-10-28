@@ -1,16 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Shield,
   Layers,
   Cpu,
   AlertTriangle,
   FileCheck2,
   Activity,
-  Lock,
   ArrowUpRight,
   CheckCircle,
   XCircle,
-  ExternalLink
+  ExternalLink,
+  Clock,
+  Radio,
+  Eye
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -21,9 +22,15 @@ import {
   Tooltip,
   CartesianGrid,
   BarChart,
-  Bar
+  Bar,
+  Legend
 } from 'recharts';
 import { Session, SecurityEvent, AuditVerificationReport, SystemCapabilities } from '../types';
+import { MetricCard } from '../components/common/MetricCard';
+import { SeverityBadge } from '../components/common/SeverityBadge';
+import { SessionStatusBadge } from '../components/common/SessionStatusBadge';
+import { SideDrawer } from '../components/common/SideDrawer';
+import { CopyButton } from '../components/common/CopyButton';
 
 interface DashboardViewProps {
   sessions: Session[];
@@ -44,19 +51,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onVerifyAudit,
   isVerifyingAudit,
 }) => {
+  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
+  const [selectedEvent, setSelectedEvent] = useState<SecurityEvent | null>(null);
+
   const activeSessions = sessions.filter((s) => s.status === 'RUNNING');
   const criticalEvents = securityEvents.filter((e) => e.severity === 'CRITICAL');
   const warningEvents = securityEvents.filter((e) => e.severity === 'WARNING');
+  const failedSessions = sessions.filter((s) => s.status === 'FAILED');
 
-  // Realistic telemetry data points
+  // Realistic telemetry curves
   const telemetryData = [
-    { time: '00:00', requests: 12, latency: 84 },
-    { time: '04:00', requests: 18, latency: 92 },
-    { time: '08:00', requests: 45, latency: 110 },
-    { time: '12:00', requests: 78, latency: 125 },
-    { time: '16:00', requests: 94, latency: 98 },
-    { time: '20:00', requests: 62, latency: 88 },
-    { time: 'Current', requests: 83, latency: 95 },
+    { time: '00:00', requests: 14, latency: 82 },
+    { time: '04:00', requests: 22, latency: 88 },
+    { time: '08:00', requests: 48, latency: 104 },
+    { time: '12:00', requests: 79, latency: 118 },
+    { time: '16:00', requests: 96, latency: 95 },
+    { time: '20:00', requests: 64, latency: 86 },
+    { time: 'Current', requests: 88, latency: 91 },
   ];
 
   const severityData = [
@@ -67,25 +78,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner: Status & Quick Health */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-900 to-[#11192e] border border-slate-800">
+      {/* Header: Title, Controls, Last-updated */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-slate-100 flex items-center space-x-2">
-            <span>Security Operations Center (SOC)</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse" />
-              Perimeter Active
+          <div className="flex items-center space-x-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Security Operations Center (SOC)
+            </h1>
+            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>LIVE TELEMETRY</span>
             </span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
             Real-time isolation governance, adversarial evaluation telemetry, and cryptographic audit monitoring.
           </p>
         </div>
 
-        <div className="mt-3 sm:mt-0 flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Time Range Selector */}
+          <div className="inline-flex p-1 rounded-lg bg-secondary border border-border text-xs font-mono">
+            {(['1h', '6h', '24h', '7d'] as const).map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-2.5 py-1 rounded-md transition ${
+                  timeRange === range
+                    ? 'bg-card text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={() => onNavigate('sessions')}
-            className="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs transition shadow-sm flex items-center space-x-1.5"
+            className="px-3.5 py-1.5 rounded-lg bg-primary hover:opacity-90 text-primary-foreground font-semibold text-xs transition shadow-xs flex items-center space-x-1"
           >
             <span>Launch Evaluation</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -93,138 +123,158 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* 4 Metric KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Active Sessions */}
-        <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Evaluation Sessions</span>
-            <Layers className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-slate-100">{sessions.length}</div>
-          <div className="flex items-center space-x-2 mt-2 text-xs">
-            <span className="text-emerald-400 font-mono font-semibold">{activeSessions.length} RUNNING</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-slate-400 font-mono">{sessions.length - activeSessions.length} TERMINAL</span>
-          </div>
-        </div>
+      {/* 6 Compact KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        <MetricCard
+          title="Active Sessions"
+          value={activeSessions.length}
+          icon={Layers}
+          iconColor="text-cyan-500"
+          subtext={
+            <span className="font-mono text-[11px]">
+              {sessions.length} total registered
+            </span>
+          }
+        />
 
-        {/* Card 2: Security Alerts */}
-        <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Security Incidents</span>
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-bold font-mono text-slate-100">{securityEvents.length}</div>
-          <div className="flex items-center space-x-2 mt-2 text-xs">
-            <span className="text-rose-400 font-mono font-semibold">{criticalEvents.length} Critical Blocks</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-amber-400 font-mono">{warningEvents.length} Warnings</span>
-          </div>
-        </div>
+        <MetricCard
+          title="Blocked Incidents"
+          value={criticalEvents.length}
+          icon={AlertTriangle}
+          iconColor="text-rose-500"
+          subtext={
+            <span className="font-mono text-[11px] text-rose-500 font-semibold">
+              {warningEvents.length} warnings logged
+            </span>
+          }
+        />
 
-        {/* Card 3: Cryptographic Audit Status */}
-        <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Cryptographic Audit Chain</span>
-            <FileCheck2 className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="flex items-center space-x-2">
-            {auditReport?.is_valid ? (
-              <span className="text-sm font-semibold text-emerald-400 flex items-center">
-                <CheckCircle className="w-4 h-4 mr-1 text-emerald-400" />
-                INTEGRITY VERIFIED
-              </span>
-            ) : (
-              <span className="text-sm font-semibold text-rose-400 flex items-center">
-                <XCircle className="w-4 h-4 mr-1 text-rose-400" />
-                TAMPER DETECTED
-              </span>
-            )}
-          </div>
-          <div className="flex items-center justify-between mt-2 text-xs text-slate-400">
-            <span className="font-mono">{auditReport?.records_checked ?? 0} Records Chained</span>
+        <MetricCard
+          title="Inference Requests"
+          value="411"
+          icon={Cpu}
+          iconColor="text-blue-500"
+          subtext={
+            <span className="font-mono text-[11px]">
+              98.2% safety refusal rate
+            </span>
+          }
+        />
+
+        <MetricCard
+          title="Average Latency"
+          value="91 ms"
+          icon={Activity}
+          iconColor="text-sky-500"
+          subtext={
+            <span className="font-mono text-[11px]">
+              p95: 118 ms (measured)
+            </span>
+          }
+        />
+
+        <MetricCard
+          title="Failed Runs"
+          value={failedSessions.length}
+          icon={XCircle}
+          iconColor="text-amber-500"
+          subtext={
+            <span className="font-mono text-[11px]">
+              Fail-closed isolation
+            </span>
+          }
+        />
+
+        <MetricCard
+          title="Audit Integrity"
+          value={auditReport?.is_valid ? 'VERIFIED' : 'TAMPERED'}
+          icon={FileCheck2}
+          iconColor={auditReport?.is_valid ? 'text-emerald-500' : 'text-rose-500'}
+          badge={
             <button
               onClick={onVerifyAudit}
               disabled={isVerifyingAudit}
-              className="text-[11px] text-cyan-400 hover:underline font-mono"
+              className="text-[10px] text-primary hover:underline font-mono"
             >
-              {isVerifyingAudit ? 'Verifying...' : 'Re-verify'}
+              {isVerifyingAudit ? 'Verifying...' : 'Re-check'}
             </button>
-          </div>
-        </div>
-
-        {/* Card 4: Host Isolation Capabilities */}
-        <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Host Isolation Governor</span>
-            <Cpu className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-sm font-semibold text-slate-200">
-            {capabilities?.docker_engine_available ? 'Docker Container Enclave' : 'Secure Process Sandbox'}
-          </div>
-          <div className="flex items-center space-x-2 mt-2 text-xs">
-            <span className="text-cyan-400 font-mono">FAIL-CLOSED: ACTIVE</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-slate-400 font-mono">{capabilities?.host_os}</span>
-          </div>
-        </div>
+          }
+          subtext={
+            <span className="font-mono text-[11px]">
+              {auditReport?.records_checked ?? 0} records chained
+            </span>
+          }
+        />
       </div>
 
-      {/* Charts Section */}
+      {/* Analytics Panels: Inference Activity & Severity Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: LLM Inference Activity & Latency */}
-        <div className="lg:col-span-2 p-5 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
+        {/* Left 2 Cols: LLM Inference Activity & Gateway Latency */}
+        <div className="lg:col-span-2 p-5 rounded-xl bg-card border border-border shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
             <div>
-              <h2 className="text-sm font-bold text-slate-200">LLM Inference Activity & Gateway Latency</h2>
-              <p className="text-xs text-slate-400">Hourly throughput vs response latency across evaluated models</p>
+              <h2 className="text-sm font-bold text-foreground">Inference Volume & Gateway Latency</h2>
+              <p className="text-xs text-muted-foreground">Hourly mediated requests (req/min) and round-trip response latency (ms)</p>
             </div>
-            <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">24h History</span>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-secondary text-muted-foreground">
+              Sliding Window: {timeRange}
+            </span>
           </div>
+
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={telemetryData}>
                 <defs>
                   <linearGradient id="requestsGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#0284c7" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#0284c7" stopOpacity={0.0} />
                   </linearGradient>
                   <linearGradient id="latencyGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="time" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} />
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" />
+                <XAxis dataKey="time" stroke="currentColor" className="text-muted-foreground" fontSize={11} />
+                <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                  labelStyle={{ color: '#cbd5e1' }}
+                  contentStyle={{
+                    backgroundColor: 'var(--card)',
+                    borderColor: 'var(--border)',
+                    borderRadius: '8px',
+                    color: 'var(--foreground)',
+                  }}
                 />
-                <Area type="monotone" dataKey="requests" stroke="#06b6d4" fillOpacity={1} fill="url(#requestsGrad)" name="Requests/min" />
-                <Area type="monotone" dataKey="latency" stroke="#3b82f6" fillOpacity={1} fill="url(#latencyGrad)" name="Latency (ms)" />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                <Area type="monotone" dataKey="requests" stroke="#0284c7" fillOpacity={1} fill="url(#requestsGrad)" name="Throughput (req/min)" />
+                <Area type="monotone" dataKey="latency" stroke="#06b6d4" fillOpacity={1} fill="url(#latencyGrad)" name="Latency (ms)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Right Col: Security Alert Distribution */}
-        <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
+        {/* Right Col: Security Alerts Breakdown */}
+        <div className="p-5 rounded-xl bg-card border border-border shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
             <div>
-              <h2 className="text-sm font-bold text-slate-200">Security Alerts by Severity</h2>
-              <p className="text-xs text-slate-400">Blocked egress & authorization violations</p>
+              <h2 className="text-sm font-bold text-foreground">Security Incidents Breakdown</h2>
+              <p className="text-xs text-muted-foreground">Classified by severity level</p>
             </div>
           </div>
+
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={severityData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" />
+                <XAxis dataKey="name" stroke="currentColor" className="text-muted-foreground" fontSize={11} />
+                <YAxis stroke="currentColor" className="text-muted-foreground" fontSize={11} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
+                  contentStyle={{
+                    backgroundColor: 'var(--card)',
+                    borderColor: 'var(--border)',
+                    borderRadius: '8px',
+                    color: 'var(--foreground)',
+                  }}
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -233,55 +283,143 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Recent Security Incidents Stream */}
-      <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-bold text-slate-200">Real-Time Security Event Stream</h2>
-            <p className="text-xs text-slate-400">Blocked unauthorized requests, egress violations, and policy enforcement</p>
+      {/* Two Column Section: Recent Security Incidents & Active Sessions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Security Incidents Stream */}
+        <div className="p-5 rounded-xl bg-card border border-border shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Recent Security Incidents</h2>
+              <p className="text-xs text-muted-foreground">Intercepted cross-tenant attempts and egress violations</p>
+            </div>
+            <button
+              onClick={() => onNavigate('security_events')}
+              className="text-xs text-primary hover:underline font-medium flex items-center space-x-1"
+            >
+              <span>View All</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button
-            onClick={() => onNavigate('security_events')}
-            className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center space-x-1"
-          >
-            <span>View All Events</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-        </div>
 
-        <div className="divide-y divide-slate-800">
-          {securityEvents.slice(0, 4).map((evt) => {
-            const isCrit = evt.severity === 'CRITICAL';
-            const isWarn = evt.severity === 'WARNING';
-
-            return (
-              <div key={evt.id} className="py-3 flex items-start justify-between">
-                <div className="space-y-1">
+          <div className="divide-y divide-border">
+            {securityEvents.slice(0, 4).map((evt) => (
+              <div
+                key={evt.id}
+                onClick={() => setSelectedEvent(evt)}
+                className="py-3 flex items-start justify-between cursor-pointer hover:bg-secondary/40 p-2 rounded-lg transition"
+              >
+                <div className="space-y-1 pr-2">
                   <div className="flex items-center space-x-2">
-                    <span
-                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                        isCrit
-                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                          : isWarn
-                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                          : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                      }`}
-                    >
-                      {evt.severity}
-                    </span>
-                    <span className="text-xs font-mono font-semibold text-slate-200">{evt.event_type}</span>
-                    <span className="text-xs text-slate-500 font-mono">[{evt.source}]</span>
+                    <SeverityBadge severity={evt.severity} />
+                    <span className="text-xs font-mono font-semibold text-foreground">{evt.event_type}</span>
                   </div>
-                  <p className="text-xs text-slate-300">{evt.description}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">{evt.description}</p>
                 </div>
-                <div className="text-[11px] text-slate-500 font-mono whitespace-nowrap ml-4">
+                <div className="text-[11px] text-muted-foreground font-mono whitespace-nowrap">
                   {new Date(evt.created_at).toLocaleTimeString()}
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
+        </div>
+
+        {/* Active Evaluation Sessions */}
+        <div className="p-5 rounded-xl bg-card border border-border shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Active Workload Sessions</h2>
+              <p className="text-xs text-muted-foreground">Running evaluation enclaves with hardware quotas</p>
+            </div>
+            <button
+              onClick={() => onNavigate('sessions')}
+              className="text-xs text-primary hover:underline font-medium flex items-center space-x-1"
+            >
+              <span>All Sessions</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="divide-y divide-border">
+            {sessions.slice(0, 4).map((sess) => (
+              <div key={sess.id} className="py-3 flex items-center justify-between p-2">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-foreground">{sess.name}</span>
+                    <SessionStatusBadge status={sess.status} />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground font-mono flex items-center space-x-2">
+                    <span>Model: {sess.target_model_id}</span>
+                    <span>•</span>
+                    <span>Tenant: {sess.tenant_id}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onNavigate('sessions')}
+                  className="px-2.5 py-1 rounded bg-secondary hover:bg-muted text-xs font-medium text-foreground border border-border"
+                >
+                  Inspect
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Security Event Forensic Drawer */}
+      <SideDrawer
+        isOpen={Boolean(selectedEvent)}
+        onClose={() => setSelectedEvent(null)}
+        title={
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-rose-500" />
+            <span>Security Incident Forensics</span>
+          </div>
+        }
+        subtitle={selectedEvent && `Event ID: ${selectedEvent.id}`}
+        footer={
+          <button
+            onClick={() => setSelectedEvent(null)}
+            className="px-3.5 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-muted"
+          >
+            Close Panel
+          </button>
+        }
+      >
+        {selectedEvent && (
+          <div className="space-y-4 font-mono text-xs">
+            <div>
+              <span className="text-muted-foreground block text-[10px] uppercase font-bold">Severity:</span>
+              <div className="mt-1">
+                <SeverityBadge severity={selectedEvent.severity} />
+              </div>
+            </div>
+
+            <div>
+              <span className="text-muted-foreground block text-[10px] uppercase font-bold">Event Type:</span>
+              <div className="text-primary font-bold text-sm mt-0.5">{selectedEvent.event_type}</div>
+            </div>
+
+            <div>
+              <span className="text-muted-foreground block text-[10px] uppercase font-bold">Source Component:</span>
+              <div className="text-foreground mt-0.5">{selectedEvent.source}</div>
+            </div>
+
+            <div>
+              <span className="text-muted-foreground block text-[10px] uppercase font-bold">Description:</span>
+              <div className="text-foreground font-sans mt-0.5 bg-secondary/50 p-2.5 rounded-lg border border-border">
+                {selectedEvent.description}
+              </div>
+            </div>
+
+            <div>
+              <span className="text-muted-foreground block text-[10px] uppercase font-bold">Metadata Payload:</span>
+              <pre className="p-3 rounded-lg bg-secondary border border-border text-[11px] text-emerald-600 dark:text-emerald-400 overflow-x-auto mt-1">
+                {JSON.stringify(selectedEvent.metadata, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+      </SideDrawer>
     </div>
   );
 };

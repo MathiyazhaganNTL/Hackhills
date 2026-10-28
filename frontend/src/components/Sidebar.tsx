@@ -10,7 +10,8 @@ import {
   BarChart3,
   Users,
   Server,
-  Lock
+  Lock,
+  ExternalLink
 } from 'lucide-react';
 import { Role } from '../types';
 
@@ -33,128 +34,159 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, userRole }) => {
-  const navItems = [
+  const navSections = [
     {
-      id: 'dashboard' as ViewType,
-      label: 'SOC Overview',
-      icon: LayoutDashboard,
-      roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+      group: 'OVERVIEW',
+      items: [
+        {
+          id: 'dashboard' as ViewType,
+          label: 'SOC Dashboard',
+          icon: LayoutDashboard,
+          roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+        },
+      ],
     },
     {
-      id: 'sessions' as ViewType,
-      label: 'Evaluation Sessions',
-      icon: Layers,
-      roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+      group: 'EVALUATION & DEFENSE',
+      items: [
+        {
+          id: 'sessions' as ViewType,
+          label: 'Evaluation Sessions',
+          icon: Layers,
+          roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+        },
+        {
+          id: 'red_team' as ViewType,
+          label: 'Red-Team Attack Lab',
+          icon: Crosshair,
+          roles: ['security_admin', 'red_team'],
+          badge: 'ADVERSARIAL',
+          badgeColor: 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30',
+        },
+        {
+          id: 'blue_team' as ViewType,
+          label: 'Blue-Team Guardrails',
+          icon: ShieldCheck,
+          roles: ['security_admin', 'blue_team'],
+          badge: 'DEFENSE',
+          badgeColor: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/30',
+        },
+        {
+          id: 'reports' as ViewType,
+          label: 'Reports & Evidence',
+          icon: BarChart3,
+          roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+        },
+      ],
     },
     {
-      id: 'red_team' as ViewType,
-      label: 'Red-Team Attack Lab',
-      icon: Crosshair,
-      roles: ['security_admin', 'red_team'],
-      badge: 'Adversarial',
-      badgeColor: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
+      group: 'SECURITY & GOVERNANCE',
+      items: [
+        {
+          id: 'gateway' as ViewType,
+          label: 'Secure LLM Gateway',
+          icon: Cpu,
+          roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+        },
+        {
+          id: 'security_events' as ViewType,
+          label: 'Security Events',
+          icon: AlertTriangle,
+          roles: ['security_admin', 'auditor'],
+        },
+        {
+          id: 'audit' as ViewType,
+          label: 'Audit Hash-Chain',
+          icon: FileCheck2,
+          roles: ['security_admin', 'auditor'],
+          badge: 'SHA-256',
+          badgeColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+        },
+      ],
     },
     {
-      id: 'blue_team' as ViewType,
-      label: 'Blue-Team Guardrails',
-      icon: ShieldCheck,
-      roles: ['security_admin', 'blue_team'],
-      badge: 'Defense',
-      badgeColor: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    },
-    {
-      id: 'gateway' as ViewType,
-      label: 'Secure LLM Gateway',
-      icon: Cpu,
-      roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
-    },
-    {
-      id: 'security_events' as ViewType,
-      label: 'Security Events',
-      icon: AlertTriangle,
-      roles: ['security_admin', 'auditor'],
-    },
-    {
-      id: 'audit' as ViewType,
-      label: 'Audit Hash-Chain',
-      icon: FileCheck2,
-      roles: ['security_admin', 'auditor'],
-      badge: 'SHA-256',
-      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    },
-    {
-      id: 'reports' as ViewType,
-      label: 'Evidence & Reports',
-      icon: BarChart3,
-      roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
-    },
-    {
-      id: 'admin' as ViewType,
-      label: 'Admin & RBAC',
-      icon: Users,
-      roles: ['security_admin'],
-    },
-    {
-      id: 'system' as ViewType,
-      label: 'Host & Isolation Health',
-      icon: Server,
-      roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+      group: 'SYSTEM & ADMIN',
+      items: [
+        {
+          id: 'admin' as ViewType,
+          label: 'Users & RBAC',
+          icon: Users,
+          roles: ['security_admin'],
+        },
+        {
+          id: 'system' as ViewType,
+          label: 'Host & Isolation Health',
+          icon: Server,
+          roles: ['security_admin', 'red_team', 'blue_team', 'auditor'],
+        },
+      ],
     },
   ];
 
   return (
-    <aside className="w-64 border-r border-slate-800 bg-[#0a0f1d] flex flex-col justify-between select-none">
-      <div className="py-4 px-3 space-y-1">
-        <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase font-mono">
-          Security Controls
-        </div>
+    <aside className="w-64 border-r border-border bg-card/60 backdrop-blur-xs flex flex-col justify-between select-none transition-colors">
+      <div className="py-4 px-3 space-y-4">
+        {navSections.map((sec, sIdx) => (
+          <div key={sIdx} className="space-y-1">
+            <div className="px-3 pb-1 text-[10px] font-mono font-bold tracking-wider text-muted-foreground uppercase">
+              {sec.group}
+            </div>
 
-        {navItems.map((item) => {
-          const isAllowed = userRole ? item.roles.includes(userRole) : true;
-          const isActive = currentView === item.id;
-          const Icon = item.icon;
+            {sec.items.map((item) => {
+              const isAllowed = userRole ? item.roles.includes(userRole) : true;
+              const isActive = currentView === item.id;
+              const Icon = item.icon;
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => onSelectView(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-gradient-to-r from-cyan-950/80 to-blue-950/40 text-cyan-400 border border-cyan-800/50 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Icon
-                  className={`w-4 h-4 ${
-                    isActive ? 'text-cyan-400' : isAllowed ? 'text-slate-400' : 'text-slate-600'
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onSelectView(item.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-primary/10 text-primary border border-primary/30 font-semibold shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70'
                   }`}
-                />
-                <span className={!isAllowed ? 'text-slate-500' : ''}>{item.label}</span>
-              </div>
-
-              {!isAllowed ? (
-                <Lock className="w-3.5 h-3.5 text-slate-600" />
-              ) : item.badge ? (
-                <span
-                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${item.badgeColor}`}
                 >
-                  {item.badge}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+                  <div className="flex items-center space-x-2.5">
+                    <Icon
+                      className={`w-4 h-4 ${
+                        isActive
+                          ? 'text-primary'
+                          : isAllowed
+                          ? 'text-muted-foreground'
+                          : 'text-muted-foreground/40'
+                      }`}
+                    />
+                    <span className={!isAllowed ? 'opacity-60' : ''}>{item.label}</span>
+                  </div>
+
+                  {!isAllowed ? (
+                    <Lock className="w-3 h-3 text-muted-foreground/50" />
+                  ) : item.badge ? (
+                    <span
+                      className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${item.badgeColor}`}
+                    >
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Footer Security Badge */}
-      <div className="p-4 border-t border-slate-800/80 m-2 rounded-lg bg-slate-900/60 border">
-        <div className="flex items-center space-x-2 text-xs text-slate-300">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-mono text-[11px] font-semibold text-emerald-400">ISOLATION ACTIVE</span>
+      <div className="p-3.5 m-3 rounded-lg bg-secondary/80 border border-border text-xs space-y-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-1.5 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>PERIMETER SECURE</span>
+          </div>
+          <span className="text-[10px] text-muted-foreground font-mono">v1.0</span>
         </div>
-        <p className="text-[11px] text-slate-500 mt-1">
-          Deny-by-default egress & container sandbox policies enforced.
+        <p className="text-[11px] text-muted-foreground">
+          Default-deny egress & container sandbox boundaries active.
         </p>
       </div>
     </aside>
